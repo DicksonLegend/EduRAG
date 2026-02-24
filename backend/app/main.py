@@ -40,13 +40,18 @@ async def lifespan(app: FastAPI):
 
     # Preload FAISS indices from disk
     logger.info("Loading FAISS indices...")
-    from app.rag.vector_store import vector_store
-    import os
-    for f in os.listdir(settings.FAISS_INDEX_DIR):
-        if f.endswith(".index"):
-            doc_id = int(f.replace("doc_", "").replace(".index", ""))
-            vector_store.load_index(doc_id)
-    logger.info("FAISS indices loaded.")
+    try:
+        from app.rag.vector_store import vector_store
+        import os
+        faiss_dir = str(settings.FAISS_INDEX_DIR)
+        if os.path.exists(faiss_dir):
+            for f in os.listdir(faiss_dir):
+                if f.endswith(".index"):
+                    doc_id = int(f.replace("doc_", "").replace(".index", ""))
+                    vector_store.load_index(doc_id)
+        logger.info("FAISS indices loaded.")
+    except Exception as e:
+        logger.warning(f"FAISS loading skipped: {e}")
 
     logger.info("Server is ready!")
     yield

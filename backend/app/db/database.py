@@ -30,4 +30,6 @@ def get_db():
 
 def init_db():
     """Create all tables. Call once at application startup."""
+    # Import all models so they register with Base.metadata
+    from app.db.models import user, document, chunk, topic, mcq_attempt, progress  # noqa: F401
     Base.metadata.create_all(bind=engine)
