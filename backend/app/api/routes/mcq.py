@@ -2,7 +2,7 @@
 MCQ routes — generate and evaluate multiple choice questions.
 """
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
@@ -14,6 +14,9 @@ from app.schemas.mcq import (
     MCQSubmitRequest,
     MCQSubmitResponse,
 )
+
+import logging
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/mcq", tags=["MCQ Generation & Evaluation"])
 
@@ -30,8 +33,12 @@ def generate_mcqs(
     Study Mode: Returns questions with correct answers and explanations.
     Practice Mode: Returns questions without answers. Use /mcq/submit to evaluate.
     """
-    service = MCQService(db)
-    return service.generate_mcqs(request, user_id)
+    try:
+        service = MCQService(db)
+        return service.generate_mcqs(request, user_id)
+    except Exception as e:
+        logger.error(f"MCQ generation failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"MCQ generation failed: {str(e)}")
 
 
 @router.post("/submit", response_model=MCQSubmitResponse)

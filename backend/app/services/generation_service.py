@@ -7,12 +7,41 @@ Auto-downloads the GGUF model from HuggingFace if not present.
 """
 
 import logging
+import os
+import sys
 from pathlib import Path
 from typing import Optional
 
 logger = logging.getLogger(__name__)
 
 _llm = None
+
+
+def _setup_cuda_dll_paths():
+    """
+    Add pip-installed NVIDIA CUDA DLL directories to PATH.
+    Required when CUDA toolkit is not installed system-wide but
+    nvidia-cuda-runtime-cu12 / nvidia-cublas-cu12 are pip-installed.
+    """
+    site_packages = Path(sys.executable).parent / '..' / 'Lib' / 'site-packages'
+    nvidia_dir = site_packages / 'nvidia'
+    if not nvidia_dir.is_dir():
+        return
+
+    for dll_file in nvidia_dir.rglob('*.dll'):
+        dll_dir = str(dll_file.parent)
+        if dll_dir not in os.environ.get('PATH', ''):
+            os.environ['PATH'] = dll_dir + os.pathsep + os.environ.get('PATH', '')
+            if hasattr(os, 'add_dll_directory'):
+                try:
+                    os.add_dll_directory(dll_dir)
+                except OSError:
+                    pass
+            logger.debug(f"Added CUDA DLL path: {dll_dir}")
+
+
+# Run once at import time so CUDA DLLs are available before llama_cpp loads
+_setup_cuda_dll_paths()
 
 
 def _download_model_if_missing(model_path: str, repo_id: str, filename: str) -> str:
@@ -71,9 +100,20 @@ def _get_llm():
     global _llm
     if _llm is None:
         import gc
+
+        # Re-run CUDA DLL setup right before import (belt-and-suspenders)
+        _setup_cuda_dll_paths()
+
         from llama_cpp import Llama
+        import llama_cpp
         from app.config import settings
-        from pathlib import Path
+
+        # Log GPU support status
+        if hasattr(llama_cpp, 'llama_supports_gpu_offload'):
+            gpu_supported = llama_cpp.llama_supports_gpu_offload()
+            logger.info(f"llama_cpp GPU offload supported: {gpu_supported}")
+        else:
+            logger.warning("llama_cpp.llama_supports_gpu_offload not found")
 
         # Auto-download model if not present
         model_path = _download_model_if_missing(
@@ -85,6 +125,7 @@ def _get_llm():
         # Ensure absolute path
         model_path = str(Path(model_path).resolve())
         logger.info(f"Loading LLM from: {model_path}")
+        logger.info(f"Requested GPU layers: {settings.LLM_GPU_LAYERS}")
 
         try:
             _llm = Llama(
@@ -92,7 +133,7 @@ def _get_llm():
                 n_ctx=settings.LLM_CONTEXT_LENGTH,
                 n_gpu_layers=settings.LLM_GPU_LAYERS,
                 n_threads=settings.LLM_THREADS,
-                verbose=settings.DEBUG,
+                verbose=True,  # Force verbose to see GPU allocation status
             )
             logger.info(f"LLM loaded successfully (GPU layers: {settings.LLM_GPU_LAYERS}).")
         except Exception as gpu_err:
@@ -105,7 +146,7 @@ def _get_llm():
                 n_ctx=2048,
                 n_gpu_layers=0,
                 n_threads=settings.LLM_THREADS,
-                verbose=settings.DEBUG,
+                verbose=True,
             )
             logger.info("LLM loaded successfully (CPU-only mode).")
     return _llm
