@@ -70,8 +70,10 @@ def _get_llm():
     """Lazy-load the LLM (singleton). Auto-downloads if missing."""
     global _llm
     if _llm is None:
+        import gc
         from llama_cpp import Llama
         from app.config import settings
+        from pathlib import Path
 
         # Auto-download model if not present
         model_path = _download_model_if_missing(
@@ -80,15 +82,32 @@ def _get_llm():
             filename=settings.LLM_MODEL_FILENAME,
         )
 
+        # Ensure absolute path
+        model_path = str(Path(model_path).resolve())
         logger.info(f"Loading LLM from: {model_path}")
-        _llm = Llama(
-            model_path=model_path,
-            n_ctx=settings.LLM_CONTEXT_LENGTH,
-            n_gpu_layers=settings.LLM_GPU_LAYERS,
-            n_threads=settings.LLM_THREADS,
-            verbose=settings.DEBUG,
-        )
-        logger.info("LLM loaded successfully.")
+
+        try:
+            _llm = Llama(
+                model_path=model_path,
+                n_ctx=settings.LLM_CONTEXT_LENGTH,
+                n_gpu_layers=settings.LLM_GPU_LAYERS,
+                n_threads=settings.LLM_THREADS,
+                verbose=settings.DEBUG,
+            )
+            logger.info(f"LLM loaded successfully (GPU layers: {settings.LLM_GPU_LAYERS}).")
+        except Exception as gpu_err:
+            logger.warning(f"GPU loading failed: {gpu_err}")
+            logger.info("Falling back to CPU-only mode...")
+            # Free any partially allocated memory
+            gc.collect()
+            _llm = Llama(
+                model_path=model_path,
+                n_ctx=2048,
+                n_gpu_layers=0,
+                n_threads=settings.LLM_THREADS,
+                verbose=settings.DEBUG,
+            )
+            logger.info("LLM loaded successfully (CPU-only mode).")
     return _llm
 
 

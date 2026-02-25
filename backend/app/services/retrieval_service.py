@@ -46,6 +46,10 @@ class RetrievalService:
         Returns:
             List of dicts with keys: text, page_number, topic, score, confidence.
         """
+        # Sanitize topic filter — ignore Swagger placeholder values
+        if topic_filter and topic_filter.strip().lower() in ("", "string", "null", "none"):
+            topic_filter = None
+
         # Step 1: Encode query
         query_embedding = self.embedding_service.encode_query(query)
 
