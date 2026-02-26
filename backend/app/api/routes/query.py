@@ -9,7 +9,11 @@ from app.db.database import get_db
 from app.auth.jwt_handler import get_current_user_id
 from app.services.rag_service import RAGService
 from app.services.progress_service import ProgressService
+from app.db.models.qa_history import QuestionAnswerHistory
 from app.schemas.query import QueryRequest, QueryResponse
+
+import logging
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/query", tags=["Question Answering"])
 
@@ -29,6 +33,7 @@ def ask_question(
     3. Format based on selected mode (beginner/exam/detailed)
     4. Control length based on marks (2/3/5/10)
     5. Return answer with confidence score and source pages
+    6. Auto-save the Q&A to history
 
     The answer is strictly generated from document context only.
     """
@@ -40,4 +45,22 @@ def ask_question(
     progress_service = ProgressService(db)
     progress_service.record_question(user_id, request.document_id, request.topic)
 
+    # Auto-save to Q&A history
+    try:
+        history_entry = QuestionAnswerHistory(
+            user_id=user_id,
+            document_id=request.document_id,
+            question=request.question,
+            answer=response.answer,
+            mode=request.mode.value,
+            marks=request.marks.value if request.marks else None,
+            confidence_score=response.confidence_score,
+        )
+        db.add(history_entry)
+        db.commit()
+    except Exception as e:
+        logger.warning(f"Failed to save Q&A history: {e}")
+        db.rollback()
+
     return response
+

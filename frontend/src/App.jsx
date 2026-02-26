@@ -10,6 +10,7 @@ import Upload from './pages/Upload';
 import AskQuestion from './pages/AskQuestion';
 import MCQ from './pages/MCQ';
 import Analytics from './pages/Analytics';
+import History from './pages/History';
 
 function AppRoutes() {
   return (
@@ -26,6 +27,7 @@ function AppRoutes() {
         <Route path="/ask" element={<ProtectedRoute><AskQuestion /></ProtectedRoute>} />
         <Route path="/mcq" element={<ProtectedRoute><MCQ /></ProtectedRoute>} />
         <Route path="/analytics" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
+        <Route path="/history" element={<ProtectedRoute><History /></ProtectedRoute>} />
 
         {/* Default redirect */}
         <Route path="*" element={<Navigate to="/dashboard" replace />} />

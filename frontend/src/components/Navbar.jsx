@@ -6,6 +6,7 @@ const navLinks = [
     { to: '/upload', label: 'Upload', icon: '⬆️' },
     { to: '/ask', label: 'Ask', icon: '💬' },
     { to: '/mcq', label: 'MCQ', icon: '✅' },
+    { to: '/history', label: 'History', icon: '📋' },
     { to: '/analytics', label: 'Analytics', icon: '📊' },
 ];
 

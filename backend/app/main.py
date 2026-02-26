@@ -97,6 +97,7 @@ from app.api.routes.topics import router as topics_router
 from app.api.routes.progress import router as progress_router
 from app.api.routes.mentor import router as mentor_router
 from app.api.routes.revision import router as revision_router
+from app.api.routes.history import router as history_router
 
 app.include_router(auth_router)
 app.include_router(documents_router)
@@ -106,6 +107,7 @@ app.include_router(topics_router)
 app.include_router(progress_router)
 app.include_router(mentor_router)
 app.include_router(revision_router)
+app.include_router(history_router)
 
 
 # ── Health Check ─────────────────────────────────────────────────
