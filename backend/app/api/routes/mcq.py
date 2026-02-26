@@ -9,6 +9,7 @@ from app.db.database import get_db
 from app.auth.jwt_handler import get_current_user_id
 from app.services.mcq_service import MCQService
 from app.db.models.mcq_history import MCQHistory
+from app.db.models.mcq_attempt import MCQAttempt
 from app.schemas.mcq import (
     MCQGenerateRequest,
     MCQGenerateResponse,
@@ -43,16 +44,26 @@ def generate_mcqs(
         raise HTTPException(status_code=500, detail=f"MCQ generation failed: {str(e)}")
 
     # Auto-save each MCQ to history
+    # For practice mode, correct_answer is hidden in the response (None),
+    # so we fetch from the stored attempt data instead
     try:
+        # If practice mode, get correct answers from the attempt record
+        stored_answers = {}
+        if result.attempt_id:
+            attempt = db.query(MCQAttempt).filter(MCQAttempt.id == result.attempt_id).first()
+            if attempt and attempt.questions_data:
+                stored_answers = {q["id"]: q["correct_answer"] for q in attempt.questions_data}
+
         for q in result.questions:
-            # Build options dict from MCQOption list
             options_dict = {opt.label: opt.text for opt in q.options}
+            # Use stored correct answer for practice mode, response answer for study mode
+            correct = q.correct_answer or stored_answers.get(q.id, "")
             history_entry = MCQHistory(
                 user_id=user_id,
                 document_id=request.document_id,
                 question=q.question,
                 options=options_dict,
-                correct_answer=q.correct_answer or "",
+                correct_answer=correct,
                 selected_answer=None,
                 difficulty=request.difficulty.value,
                 topic=request.topic,
@@ -79,13 +90,18 @@ def submit_mcq_answers(
     Returns score, correct answers, and explanations.
     Updates student progress tracking and MCQ history.
     """
-    service = MCQService(db)
-    result = service.evaluate_submission(request, user_id)
+    try:
+        service = MCQService(db)
+        result = service.evaluate_submission(request, user_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"MCQ submission failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"MCQ submission failed: {str(e)}")
 
     # Update MCQ history with selected answers and correctness
     try:
         for r in result.results:
-            # Find the most recent matching MCQ history entry for this user+question
             entry = (
                 db.query(MCQHistory)
                 .filter(

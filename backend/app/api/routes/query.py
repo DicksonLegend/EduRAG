@@ -2,7 +2,7 @@
 RAG query routes — question answering with mode and mark control.
 """
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
@@ -38,14 +38,21 @@ def ask_question(
     The answer is strictly generated from document context only.
     """
     # Generate answer
-    rag_service = RAGService(db)
-    response = rag_service.answer_question(request)
+    try:
+        rag_service = RAGService(db)
+        response = rag_service.answer_question(request)
+    except Exception as e:
+        logger.error(f"RAG query failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Question answering failed: {str(e)}")
 
-    # Track progress
-    progress_service = ProgressService(db)
-    progress_service.record_question(user_id, request.document_id, request.topic)
+    # Track progress (non-critical — don't fail the request)
+    try:
+        progress_service = ProgressService(db)
+        progress_service.record_question(user_id, request.document_id, request.topic)
+    except Exception as e:
+        logger.warning(f"Failed to track progress: {e}")
 
-    # Auto-save to Q&A history
+    # Auto-save to Q&A history (non-critical — don't fail the request)
     try:
         history_entry = QuestionAnswerHistory(
             user_id=user_id,
@@ -63,4 +70,5 @@ def ask_question(
         db.rollback()
 
     return response
+
 
