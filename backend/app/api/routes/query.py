@@ -25,17 +25,17 @@ def ask_question(
     db: Session = Depends(get_db),
 ):
     """
-    Ask a question about an uploaded document.
+    Ask a question about one or more uploaded documents.
 
     The system will:
-    1. Retrieve relevant chunks from the document via FAISS
+    1. Retrieve relevant chunks from selected document(s) via FAISS
     2. Generate an answer using Mistral-7B
     3. Format based on selected mode (beginner/exam/detailed)
     4. Control length based on marks (2/3/5/10)
     5. Return answer with confidence score and source pages
     6. Auto-save the Q&A to history
 
-    The answer is strictly generated from document context only.
+    Supports single-document (document_ids: [1]) and multi-document (document_ids: [1,2,3]) queries.
     """
     # Generate answer
     try:
@@ -48,15 +48,18 @@ def ask_question(
     # Track progress (non-critical — don't fail the request)
     try:
         progress_service = ProgressService(db)
-        progress_service.record_question(user_id, request.document_id, request.topic)
+        for doc_id in request.document_ids:
+            progress_service.record_question(user_id, doc_id, request.topic)
     except Exception as e:
         logger.warning(f"Failed to track progress: {e}")
 
     # Auto-save to Q&A history (non-critical — don't fail the request)
     try:
+        is_multi = len(request.document_ids) > 1
         history_entry = QuestionAnswerHistory(
             user_id=user_id,
-            document_id=request.document_id,
+            document_id=request.document_ids[0] if not is_multi else None,
+            document_ids=request.document_ids if is_multi else None,
             question=request.question,
             answer=response.answer,
             mode=request.mode.value,
@@ -70,5 +73,6 @@ def ask_question(
         db.rollback()
 
     return response
+
 
 

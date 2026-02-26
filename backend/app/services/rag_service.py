@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 class RAGService:
     """
     Orchestrates the full RAG pipeline:
-    1. Retrieve relevant chunks via FAISS
+    1. Retrieve relevant chunks via FAISS (single or multi-document)
     2. Build mode-aware prompt
     3. Generate answer via LLM
     4. Return structured response with confidence and sources
@@ -34,15 +34,15 @@ class RAGService:
         Process a RAG query and return a structured answer.
 
         Args:
-            request: QueryRequest with question, document_id, mode, marks.
+            request: QueryRequest with question, document_ids, mode, marks.
 
         Returns:
             QueryResponse with answer, confidence, source pages.
         """
-        # Step 1: Retrieve relevant chunks
-        retrieved = self.retrieval_service.retrieve(
+        # Step 1: Retrieve relevant chunks (supports single and multi-doc)
+        retrieved = self.retrieval_service.retrieve_multi(
             query=request.question,
-            document_id=request.document_id,
+            document_ids=request.document_ids,
             topic_filter=request.topic,
         )
 
@@ -97,3 +97,4 @@ class RAGService:
             source_pages=source_pages,
             topic=request.topic,
         )
+

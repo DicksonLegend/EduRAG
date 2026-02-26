@@ -12,6 +12,7 @@ from datetime import datetime
 class QAHistoryItem(BaseModel):
     id: int
     document_id: Optional[int]
+    document_ids: Optional[list[int]] = None
     question: str
     answer: str
     mode: str
