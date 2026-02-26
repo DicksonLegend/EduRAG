@@ -60,6 +60,11 @@ def _setup_cuda_dll_paths():
             _add_dll_dir(str(dll_file.parent))
 
 
+# Disable FORCE_MMQ — the quantized matmul kernels require more shared memory
+# than some GPUs (e.g. RTX 3050 laptop) support, causing
+# "CUDA error: shared object initialization failed" at inference time.
+os.environ["GGML_CUDA_FORCE_MMQ"] = "0"
+
 # Run once at import time so CUDA DLLs are available before llama_cpp loads
 _setup_cuda_dll_paths()
 
@@ -147,19 +152,34 @@ def _get_llm():
         logger.info(f"Loading LLM from: {model_path}")
         logger.info(f"Requested GPU layers: {settings.LLM_GPU_LAYERS}")
 
-        try:
-            _llm = Llama(
-                model_path=model_path,
-                n_ctx=settings.LLM_CONTEXT_LENGTH,
-                n_gpu_layers=settings.LLM_GPU_LAYERS,
-                n_threads=settings.LLM_THREADS,
-                verbose=True,  # Force verbose to see GPU allocation status
-            )
-            logger.info(f"LLM loaded successfully (GPU layers: {settings.LLM_GPU_LAYERS}).")
-        except Exception as gpu_err:
-            logger.warning(f"GPU loading failed: {gpu_err}")
-            logger.info("Falling back to CPU-only mode...")
-            # Free any partially allocated memory
+        # Progressively try fewer GPU layers if VRAM is insufficient
+        gpu_layers = settings.LLM_GPU_LAYERS
+        while gpu_layers > 0:
+            try:
+                _llm = Llama(
+                    model_path=model_path,
+                    n_ctx=settings.LLM_CONTEXT_LENGTH,
+                    n_gpu_layers=gpu_layers,
+                    n_threads=settings.LLM_THREADS,
+                    verbose=True,
+                )
+                logger.info(f"LLM loaded successfully (GPU layers: {gpu_layers}).")
+                break
+            except Exception as gpu_err:
+                logger.warning(
+                    f"GPU loading failed with {gpu_layers} layers: {gpu_err}"
+                )
+                _llm = None
+                gc.collect()
+                # Reduce by ~25% each attempt (minimum step of 4)
+                reduction = max(4, gpu_layers // 4)
+                gpu_layers = max(0, gpu_layers - reduction)
+                if gpu_layers > 0:
+                    logger.info(f"Retrying with {gpu_layers} GPU layers...")
+
+        # Final fallback: pure CPU
+        if _llm is None:
+            logger.warning("All GPU attempts failed. Loading in CPU-only mode...")
             gc.collect()
             _llm = Llama(
                 model_path=model_path,

@@ -23,6 +23,7 @@ def _get_model():
         from app.config import settings
 
         cache_dir = str(settings.MODELS_DIR / "sentence-transformers")
+        # Keep embeddings on CPU to reserve GPU VRAM for the LLM
         logger.info(f"Loading embedding model: {settings.EMBEDDING_MODEL_NAME}")
         logger.info(f"Model cache directory: {cache_dir}")
         logger.info("Downloading model if not cached (first run only)...")
@@ -30,8 +31,9 @@ def _get_model():
         _model = SentenceTransformer(
             settings.EMBEDDING_MODEL_NAME,
             cache_folder=cache_dir,
+            device="cpu",
         )
-        logger.info("Embedding model loaded successfully.")
+        logger.info("Embedding model loaded successfully on CPU.")
     return _model
 
 

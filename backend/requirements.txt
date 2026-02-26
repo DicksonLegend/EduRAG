@@ -24,6 +24,9 @@ Pillow==11.1.0
 
 # AI / ML
 sentence-transformers==3.3.1
+# PyTorch — Install CUDA version separately (see README):
+#   GPU:  pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/cu124
+#   CPU:  pip install torch==2.5.1
 torch==2.5.1
 transformers==4.47.1
 huggingface-hub==0.27.1
