@@ -24,33 +24,40 @@ def _setup_cuda_dll_paths():
     system-wide but nvidia-cuda-runtime-cu12 / nvidia-cublas-cu12
     are pip-installed.
     """
-    site_packages = Path(sys.executable).parent / '..' / 'Lib' / 'site-packages'
+    site_packages = (Path(sys.executable).parent / '..' / 'Lib' / 'site-packages').resolve()
 
-    # 1. Add NVIDIA CUDA runtime DLLs (cublas, cudart)
+    added_dirs = set()
+
+    def _add_dll_dir(dir_path: str):
+        """Add a directory to DLL search paths if not already added."""
+        dir_path = str(Path(dir_path).resolve())
+        if dir_path in added_dirs:
+            return
+        added_dirs.add(dir_path)
+        os.environ['PATH'] = dir_path + os.pathsep + os.environ.get('PATH', '')
+        if hasattr(os, 'add_dll_directory'):
+            try:
+                os.add_dll_directory(dir_path)
+            except OSError:
+                pass
+        logger.info(f"Added DLL search path: {dir_path}")
+
+    # 1. Add llama_cpp/lib directory FIRST (llama.dll, ggml-cuda.dll, etc.)
+    llama_lib = site_packages / 'llama_cpp' / 'lib'
+    if llama_lib.is_dir():
+        _add_dll_dir(str(llama_lib))
+
+    # 2. Add NVIDIA CUDA runtime DLLs (cublas, cudart) — explicit known paths
+    for subdir in ['cublas/bin', 'cuda_runtime/bin']:
+        cuda_dir = site_packages / 'nvidia' / subdir
+        if cuda_dir.is_dir():
+            _add_dll_dir(str(cuda_dir))
+
+    # 3. Scan for any other NVIDIA DLL directories we might have missed
     nvidia_dir = site_packages / 'nvidia'
     if nvidia_dir.is_dir():
         for dll_file in nvidia_dir.rglob('*.dll'):
-            dll_dir = str(dll_file.parent)
-            if dll_dir not in os.environ.get('PATH', ''):
-                os.environ['PATH'] = dll_dir + os.pathsep + os.environ.get('PATH', '')
-                if hasattr(os, 'add_dll_directory'):
-                    try:
-                        os.add_dll_directory(dll_dir)
-                    except OSError:
-                        pass
-                logger.debug(f"Added CUDA DLL path: {dll_dir}")
-
-    # 2. Add llama_cpp/lib directory (llama.dll, ggml-cuda.dll, etc.)
-    llama_lib = site_packages / 'llama_cpp' / 'lib'
-    if llama_lib.is_dir():
-        lib_str = str(llama_lib.resolve())
-        os.environ['PATH'] = lib_str + os.pathsep + os.environ.get('PATH', '')
-        if hasattr(os, 'add_dll_directory'):
-            try:
-                os.add_dll_directory(lib_str)
-            except OSError:
-                pass
-        logger.debug(f"Added llama_cpp lib path: {lib_str}")
+            _add_dll_dir(str(dll_file.parent))
 
 
 # Run once at import time so CUDA DLLs are available before llama_cpp loads
@@ -156,7 +163,7 @@ def _get_llm():
             gc.collect()
             _llm = Llama(
                 model_path=model_path,
-                n_ctx=2048,
+                n_ctx=settings.LLM_CONTEXT_LENGTH,
                 n_gpu_layers=0,
                 n_threads=settings.LLM_THREADS,
                 verbose=True,

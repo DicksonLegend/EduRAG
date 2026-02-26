@@ -143,17 +143,19 @@ export default function History() {
                                         const isSelected = label === item.selected_answer;
                                         let optClass = 'p-2.5 rounded-lg text-sm border ';
                                         if (isSelected && isCorrect) {
-                                            optClass += 'border-emerald-500/50 bg-emerald-500/10 text-emerald-300';
+                                            optClass += 'border-emerald-500/50 bg-emerald-500/15 text-emerald-300';
                                         } else if (isSelected && !isCorrect) {
                                             optClass += 'border-red-500/50 bg-red-500/10 text-red-300';
-                                        } else if (isCorrect && item.selected_answer) {
-                                            optClass += 'border-emerald-500/30 bg-emerald-500/5 text-emerald-400';
+                                        } else if (isCorrect) {
+                                            optClass += 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300';
                                         } else {
                                             optClass += 'border-[var(--color-border)] text-[var(--color-text-muted)]';
                                         }
                                         return (
                                             <div key={label} className={optClass}>
                                                 <span className="font-semibold">{label}.</span> {text}
+                                                {isCorrect && <span className="ml-2 text-emerald-400 font-bold">✓</span>}
+                                                {isSelected && !isCorrect && <span className="ml-2 text-red-400 font-bold">✗</span>}
                                             </div>
                                         );
                                     })}
