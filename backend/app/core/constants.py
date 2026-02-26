@@ -32,6 +32,13 @@ class MCQMode(str, Enum):
     PRACTICE = "practice"  # Hide answers, evaluate on submission
 
 
+class MCQDifficulty(str, Enum):
+    """MCQ difficulty levels."""
+    EASY = "easy"        # Factual recall, straightforward
+    MEDIUM = "medium"    # Understanding-based, conceptual
+    HARD = "hard"        # Application/analysis, tricky distractors
+
+
 class DocumentStatus(str, Enum):
     """Document processing status."""
     PENDING = "pending"

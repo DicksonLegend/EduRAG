@@ -72,7 +72,7 @@ class MCQService:
 
         # Step 2: Generate MCQs via LLM
         context_chunks = [r["text"] for r in retrieved]
-        prompt = build_mcq_prompt(context_chunks, count=request.count)
+        prompt = build_mcq_prompt(context_chunks, count=request.count, difficulty=request.difficulty.value)
 
         generation_service = get_generation_service()
         raw_output = generation_service.generate_structured(prompt)

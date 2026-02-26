@@ -7,12 +7,16 @@ import MCQCard from '../components/MCQCard';
 
 export default function MCQ() {
     const [documents, setDocuments] = useState([]);
-    const [form, setForm] = useState({ document_id: '', count: 5, mode: 'study' });
+    const [form, setForm] = useState({ document_id: '', count: 5, mode: 'study', difficulty: 'medium' });
     const [loading, setLoading] = useState(false);
     const [mcqData, setMcqData] = useState(null);
     const [answers, setAnswers] = useState({});       // { questionId: 'A' }
     const [submitted, setSubmitted] = useState(false);
     const [result, setResult] = useState(null);
+
+    // Study-to-Practice: stored study questions for reuse
+    const [studyQuestions, setStudyQuestions] = useState(null);
+    const [isPracticeFromStudy, setIsPracticeFromStudy] = useState(false);
 
     // Load completed documents via centralized API
     useEffect(() => {
@@ -32,13 +36,20 @@ export default function MCQ() {
         setAnswers({});
         setSubmitted(false);
         setResult(null);
+        setStudyQuestions(null);
+        setIsPracticeFromStudy(false);
         try {
             const res = await generateMCQs({
                 document_id: Number(form.document_id),
                 count: Number(form.count),
                 mode: form.mode,
+                difficulty: form.difficulty,
             });
             setMcqData(res.data);
+            // Save study questions for potential "Take Practice Test" later
+            if (form.mode === 'study' && res.data.questions.length > 0) {
+                setStudyQuestions(res.data.questions);
+            }
             if (res.data.questions.length === 0) {
                 toast.error('No MCQs could be generated. Try a different document.');
             }
@@ -66,7 +77,7 @@ export default function MCQ() {
             return;
         }
 
-        // If practice mode with attempt_id, submit to backend
+        // If practice mode with attempt_id (backend-generated practice), submit to backend
         if (mcqData.mode === 'practice' && mcqData.attempt_id) {
             try {
                 const res = await submitMCQAnswers({
@@ -88,15 +99,47 @@ export default function MCQ() {
                 return;
             }
         } else {
-            // Study mode — calculate locally
-            const correct = mcqData.questions.filter((q) => answers[q.id] === q.correct_answer).length;
+            // Study mode or study-to-practice — score locally using stored correct answers
+            const sourceQuestions = isPracticeFromStudy ? studyQuestions : mcqData.questions;
+            const correct = sourceQuestions.filter((q) => answers[q.id] === q.correct_answer).length;
             setResult({
-                total_questions: mcqData.questions.length,
+                total_questions: sourceQuestions.length,
                 correct_count: correct,
-                score: (correct / mcqData.questions.length) * 100,
+                score: (correct / sourceQuestions.length) * 100,
             });
+            // Reveal correct answers and explanations after scoring
+            if (isPracticeFromStudy) {
+                const revealedQuestions = mcqData.questions.map((q) => {
+                    const orig = studyQuestions.find((sq) => sq.id === q.id);
+                    return orig ? { ...q, correct_answer: orig.correct_answer, explanation: orig.explanation } : q;
+                });
+                setMcqData({ ...mcqData, questions: revealedQuestions });
+            }
         }
         setSubmitted(true);
+    };
+
+    // Switch from study view to practice test with the same questions
+    const handleTakePracticeTest = () => {
+        if (!studyQuestions) return;
+        // Create practice-mode data from the studied questions (hide answers)
+        const practiceQuestions = studyQuestions.map((q) => ({
+            ...q,
+            correct_answer: null,
+            explanation: null,
+        }));
+        setMcqData({
+            document_id: mcqData.document_id,
+            topic: mcqData.topic,
+            mode: 'practice', // Override mode to practice
+            questions: practiceQuestions,
+            attempt_id: null, // No backend attempt — we score locally
+        });
+        setAnswers({});
+        setSubmitted(false);
+        setResult(null);
+        setIsPracticeFromStudy(true);
+        toast.success('Practice test ready — same questions, no answers shown!');
     };
 
     const resetQuiz = () => {
@@ -104,9 +147,17 @@ export default function MCQ() {
         setAnswers({});
         setSubmitted(false);
         setResult(null);
+        setStudyQuestions(null);
+        setIsPracticeFromStudy(false);
     };
 
     const selectClass = 'w-full px-4 py-3 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text)] focus:outline-none focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)] transition-all';
+
+    const difficultyInfo = {
+        easy: { emoji: '🟢', label: 'Easy', desc: 'Factual recall — straightforward questions' },
+        medium: { emoji: '🟡', label: 'Medium', desc: 'Conceptual understanding — why & how questions' },
+        hard: { emoji: '🔴', label: 'Hard', desc: 'Application & analysis — tricky, multi-concept questions' },
+    };
 
     return (
         <div className="max-w-4xl mx-auto px-6 py-8 animate-fade-in">
@@ -116,7 +167,7 @@ export default function MCQ() {
             {/* Config Panel */}
             {!mcqData && (
                 <div className="glass-card p-6 space-y-5">
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                         <div>
                             <label className="block text-sm font-medium text-[var(--color-text-muted)] mb-1.5">Document</label>
                             <select value={form.document_id} onChange={(e) => setForm({ ...form, document_id: e.target.value })} className={selectClass}>
@@ -132,6 +183,14 @@ export default function MCQ() {
                             </select>
                         </div>
                         <div>
+                            <label className="block text-sm font-medium text-[var(--color-text-muted)] mb-1.5">Difficulty</label>
+                            <select value={form.difficulty} onChange={(e) => setForm({ ...form, difficulty: e.target.value })} className={selectClass}>
+                                <option value="easy">🟢 Easy</option>
+                                <option value="medium">🟡 Medium</option>
+                                <option value="hard">🔴 Hard</option>
+                            </select>
+                        </div>
+                        <div>
                             <label className="block text-sm font-medium text-[var(--color-text-muted)] mb-1.5">Questions</label>
                             <select value={form.count} onChange={(e) => setForm({ ...form, count: e.target.value })} className={selectClass}>
                                 {[3, 5, 7, 10, 15].map((n) => <option key={n} value={n}>{n} questions</option>)}
@@ -139,13 +198,16 @@ export default function MCQ() {
                         </div>
                     </div>
 
-                    {/* Mode Description */}
-                    <div className="p-3 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)]">
+                    {/* Mode + Difficulty Description */}
+                    <div className="p-3 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] space-y-1">
                         {form.mode === 'study' ? (
                             <p className="text-sm text-[var(--color-text-muted)]">📖 <strong>Study Mode</strong>: Questions, answers, and explanations shown together for learning.</p>
                         ) : (
                             <p className="text-sm text-[var(--color-text-muted)]">📝 <strong>Practice Mode</strong>: Answer all questions, then submit to see your score and review.</p>
                         )}
+                        <p className="text-sm text-[var(--color-text-muted)]">
+                            {difficultyInfo[form.difficulty].emoji} <strong>{difficultyInfo[form.difficulty].label}</strong>: {difficultyInfo[form.difficulty].desc}
+                        </p>
                     </div>
 
                     <button
@@ -189,7 +251,8 @@ export default function MCQ() {
                     ))}
 
                     {/* Action Buttons */}
-                    <div className="flex gap-3">
+                    <div className="flex gap-3 flex-wrap">
+                        {/* Submit button for practice mode */}
                         {mcqData.mode === 'practice' && !submitted && (
                             <button
                                 onClick={handleSubmit}
@@ -198,6 +261,17 @@ export default function MCQ() {
                                 Submit Answers ({Object.keys(answers).length}/{mcqData.questions.length})
                             </button>
                         )}
+
+                        {/* "Take Practice Test" button — only in study mode after studying */}
+                        {mcqData.mode === 'study' && studyQuestions && !isPracticeFromStudy && (
+                            <button
+                                onClick={handleTakePracticeTest}
+                                className="flex-1 py-3 px-4 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 text-white font-semibold hover:from-amber-600 hover:to-orange-600 transition-all"
+                            >
+                                📝 Take Practice Test
+                            </button>
+                        )}
+
                         <button
                             onClick={resetQuiz}
                             className="flex-1 py-3 px-4 rounded-lg border border-[var(--color-border)] text-sm font-medium hover:bg-[var(--color-surface-elevated)]/50 transition-all"

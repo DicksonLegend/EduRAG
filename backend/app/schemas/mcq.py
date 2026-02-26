@@ -7,7 +7,7 @@ Pydantic schemas for MCQ generation and evaluation.
 from pydantic import BaseModel, Field
 from typing import Optional
 
-from app.core.constants import MCQMode
+from app.core.constants import MCQMode, MCQDifficulty
 
 
 class MCQGenerateRequest(BaseModel):
@@ -15,6 +15,7 @@ class MCQGenerateRequest(BaseModel):
     topic: Optional[str] = None
     count: int = Field(default=5, ge=3, le=15)
     mode: MCQMode = MCQMode.STUDY
+    difficulty: MCQDifficulty = MCQDifficulty.MEDIUM
 
 
 class MCQOption(BaseModel):

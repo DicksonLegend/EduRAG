@@ -86,6 +86,7 @@ MARK_PROMPTS = {
 MCQ_GENERATION_PROMPT = (
     "Based ONLY on the provided context, generate {count} multiple-choice questions (MCQs). "
     "Each question must test understanding of the content.\n\n"
+    "{difficulty_instruction}\n\n"
     "For EACH question, provide:\n"
     "1. The question text\n"
     "2. Four options labeled A, B, C, D\n"
@@ -103,6 +104,32 @@ MCQ_GENERATION_PROMPT = (
     "IMPORTANT: Generate ONLY from the context. Do NOT create questions about topics "
     "not covered in the provided text."
 )
+
+# Difficulty-specific MCQ instructions
+DIFFICULTY_PROMPTS = {
+    "easy": (
+        "DIFFICULTY: EASY. "
+        "Generate simple, factual recall questions. "
+        "Questions should ask 'What is...', 'Which of the following...', or 'Name the...' style. "
+        "Distractors (wrong options) should be clearly incorrect. "
+        "Suitable for beginners revising basic concepts."
+    ),
+    "medium": (
+        "DIFFICULTY: MEDIUM. "
+        "Generate conceptual understanding questions. "
+        "Questions should test comprehension: 'Why does...', 'How does... work', "
+        "'What happens when...'. "
+        "Distractors should be plausible but distinguishable with proper understanding."
+    ),
+    "hard": (
+        "DIFFICULTY: HARD. "
+        "Generate challenging application and analysis questions. "
+        "Questions should require applying concepts to scenarios, comparing ideas, "
+        "or combining multiple concepts. "
+        "Distractors must be very plausible and tricky — requiring deep understanding to eliminate. "
+        "Include questions like 'In scenario X, which approach...', 'What is the primary difference between...'"
+    ),
+}
 
 # ══════════════════════════════════════════════════════════════════
 # REVISION NOTES PROMPTS
@@ -167,10 +194,11 @@ def build_rag_prompt(
     return prompt
 
 
-def build_mcq_prompt(context_chunks: list[str], count: int = 5) -> str:
-    """Build prompt for MCQ generation from context."""
+def build_mcq_prompt(context_chunks: list[str], count: int = 5, difficulty: str = "medium") -> str:
+    """Build prompt for MCQ generation from context with difficulty level."""
     context = "\n\n---\n\n".join(context_chunks)
-    instruction = MCQ_GENERATION_PROMPT.format(count=count)
+    difficulty_instruction = DIFFICULTY_PROMPTS.get(difficulty, DIFFICULTY_PROMPTS["medium"])
+    instruction = MCQ_GENERATION_PROMPT.format(count=count, difficulty_instruction=difficulty_instruction)
 
     prompt = (
         f"[INST] {SYSTEM_BASE}\n\n"
