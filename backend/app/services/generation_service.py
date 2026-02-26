@@ -19,25 +19,38 @@ _llm = None
 
 def _setup_cuda_dll_paths():
     """
-    Add pip-installed NVIDIA CUDA DLL directories to PATH.
-    Required when CUDA toolkit is not installed system-wide but
-    nvidia-cuda-runtime-cu12 / nvidia-cublas-cu12 are pip-installed.
+    Add pip-installed NVIDIA CUDA DLL directories and llama_cpp lib
+    directory to PATH. Required when CUDA toolkit is not installed
+    system-wide but nvidia-cuda-runtime-cu12 / nvidia-cublas-cu12
+    are pip-installed.
     """
     site_packages = Path(sys.executable).parent / '..' / 'Lib' / 'site-packages'
-    nvidia_dir = site_packages / 'nvidia'
-    if not nvidia_dir.is_dir():
-        return
 
-    for dll_file in nvidia_dir.rglob('*.dll'):
-        dll_dir = str(dll_file.parent)
-        if dll_dir not in os.environ.get('PATH', ''):
-            os.environ['PATH'] = dll_dir + os.pathsep + os.environ.get('PATH', '')
-            if hasattr(os, 'add_dll_directory'):
-                try:
-                    os.add_dll_directory(dll_dir)
-                except OSError:
-                    pass
-            logger.debug(f"Added CUDA DLL path: {dll_dir}")
+    # 1. Add NVIDIA CUDA runtime DLLs (cublas, cudart)
+    nvidia_dir = site_packages / 'nvidia'
+    if nvidia_dir.is_dir():
+        for dll_file in nvidia_dir.rglob('*.dll'):
+            dll_dir = str(dll_file.parent)
+            if dll_dir not in os.environ.get('PATH', ''):
+                os.environ['PATH'] = dll_dir + os.pathsep + os.environ.get('PATH', '')
+                if hasattr(os, 'add_dll_directory'):
+                    try:
+                        os.add_dll_directory(dll_dir)
+                    except OSError:
+                        pass
+                logger.debug(f"Added CUDA DLL path: {dll_dir}")
+
+    # 2. Add llama_cpp/lib directory (llama.dll, ggml-cuda.dll, etc.)
+    llama_lib = site_packages / 'llama_cpp' / 'lib'
+    if llama_lib.is_dir():
+        lib_str = str(llama_lib.resolve())
+        os.environ['PATH'] = lib_str + os.pathsep + os.environ.get('PATH', '')
+        if hasattr(os, 'add_dll_directory'):
+            try:
+                os.add_dll_directory(lib_str)
+            except OSError:
+                pass
+        logger.debug(f"Added llama_cpp lib path: {lib_str}")
 
 
 # Run once at import time so CUDA DLLs are available before llama_cpp loads
