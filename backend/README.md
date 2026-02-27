@@ -1,68 +1,141 @@
-# EduRAG — Offline Adaptive AI Personalized Learning & Evaluation System
+# EduRAG Backend
 
-A structured academic AI system with adaptive learning and evaluation capabilities, built entirely for offline use.
+Offline RAG-based academic AI system — FastAPI backend with Mistral-7B LLM, FAISS vector search, and adaptive learning features.
 
 ## Tech Stack
 
 | Component | Technology |
 |---|---|
-| Backend | Python 3.11 + FastAPI |
-| Embedding | BAAI/bge-base-en-v1.5 |
-| LLM | Mistral-7B-Instruct (4-bit GGUF) |
-| LLM Runtime | llama-cpp-python (GPU) |
-| Vector DB | FAISS |
+| Framework | Python 3.9+ / FastAPI |
+| LLM | Mistral-7B-Instruct (Q4_K_M GGUF) via llama-cpp-python |
+| Embeddings | BAAI/bge-base-en-v1.5 (sentence-transformers) |
+| Vector Store | FAISS |
 | Database | SQLite (dev) / PostgreSQL (prod) |
-| OCR | Tesseract (scanned PDF fallback) |
-| PDF | PyMuPDF (fitz) |
+| PDF Extraction | PyMuPDF + Tesseract OCR fallback |
+| Auth | JWT (python-jose + passlib/bcrypt) |
 
-## Quick Start
+## Setup
 
 ```bash
-# 1. Create virtual environment
+# Create and activate venv
 python -m venv venv
-venv\Scripts\activate  # Windows
+venv\Scripts\activate        # Windows
+# source venv/bin/activate   # Linux/macOS
 
-# 2. Install dependencies
+# Install base deps
 pip install -r requirements.txt
 
-# 3. Configure environment
-copy .env.example .env
-# Edit .env with your settings
+# Install llama-cpp-python (choose one):
+#   GPU (CUDA 12.4):
+pip install llama-cpp-python --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu124
+#   CPU only:
+pip install llama-cpp-python --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
 
-# 4. Download the Mistral-7B model (GGUF)
-# Place in: models/mistral-7b-instruct-v0.2.Q4_K_M.gguf
+# Install PyTorch with CUDA (optional, for GPU embeddings):
+pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/cu124
 
-# 5. Run the server
+# Configure
+copy .env.example .env       # then edit .env
+
+# Run
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-## API Documentation
+The Mistral-7B model (~4.4 GB) auto-downloads from HuggingFace on first run.
 
-Once running, visit: `http://localhost:8000/docs`
+## Environment Variables
+
+Key settings in `.env` (see `.env.example` for full list):
+
+| Variable | Default | Description |
+|---|---|---|
+| `DATABASE_URL` | `sqlite:///./edurag.db` | Database connection string |
+| `JWT_SECRET_KEY` | — | **Change this** in production |
+| `LLM_GPU_LAYERS` | `33` | Layers offloaded to GPU (0 = CPU only) |
+| `LLM_THREADS` | `4` | CPU threads for inference |
+| `LLM_CONTEXT_LENGTH` | `4096` | Max context window |
+| `LLM_MAX_TOKENS` | `1024` | Max generation tokens |
+| `FAISS_TOP_K` | `5` | Retrieved chunks per query |
+| `CHUNK_MIN_WORDS` | `400` | Min words per chunk |
+| `CHUNK_MAX_WORDS` | `600` | Max words per chunk |
+| `TESSERACT_CMD` | `None` | Path to tesseract binary (if not in PATH) |
+
+## API Endpoints
+
+Swagger docs available at `http://localhost:8000/docs`
+
+| Route | Description |
+|---|---|
+| `POST /auth/register` | Register new user |
+| `POST /auth/login` | Login, returns JWT |
+| `POST /documents/upload` | Upload & process PDF |
+| `GET /documents/` | List user documents |
+| `POST /query/ask` | Ask question (RAG) |
+| `POST /mcq/generate` | Generate MCQs from document |
+| `POST /mcq/submit` | Submit practice MCQ answers |
+| `GET /topics/{doc_id}` | List detected topics |
+| `POST /revision/generate` | Generate revision notes |
+| `GET /progress/overview` | Student progress stats |
+| `GET /mentor/students` | Mentor dashboard |
+| `GET /history/qa` | Q&A history |
+| `GET /history/mcq` | MCQ history |
 
 ## Architecture
 
 ```
 app/
-├── api/          # API routes & middleware
-├── auth/         # JWT authentication
-├── core/         # Config, constants, exceptions
-├── db/           # Database models & repositories
-├── rag/          # Text extraction, chunking, prompts, FAISS
-├── schemas/      # Pydantic request/response models
-└── services/     # Business logic layer
+├── main.py                 # FastAPI app, lifespan, CORS, routers
+├── config.py               # Pydantic settings (.env loader)
+├── api/
+│   ├── routes/             # Endpoint handlers
+│   │   ├── auth.py         # Register / login
+│   │   ├── documents.py    # Upload / list / status
+│   │   ├── query.py        # RAG question answering
+│   │   ├── mcq.py          # MCQ generation & evaluation
+│   │   ├── topics.py       # Topic-wise learning
+│   │   ├── revision.py     # Revision note generation
+│   │   ├── progress.py     # Student analytics
+│   │   ├── mentor.py       # Mentor dashboard
+│   │   └── history.py      # Q&A and MCQ history
+│   └── middleware/
+│       └── security.py     # File upload validation
+├── auth/
+│   └── jwt_handler.py      # JWT encode/decode
+├── core/
+│   ├── constants.py        # Enums (doc status, MCQ modes, etc.)
+│   └── exceptions.py       # Custom exceptions
+├── db/
+│   ├── database.py         # SQLAlchemy engine & session
+│   ├── models/             # ORM models (user, document, chunk, etc.)
+│   └── repositories/       # Data access layer
+├── rag/
+│   ├── text_extractor.py   # PyMuPDF + OCR extraction
+│   ├── chunker.py          # Smart overlapping chunker + topic detection
+│   ├── vector_store.py     # FAISS index management
+│   └── prompts.py          # LLM prompt templates
+├── schemas/                # Pydantic request/response models
+└── services/
+    ├── auth_service.py     # User registration & login
+    ├── document_service.py # Full PDF processing pipeline
+    ├── embedding_service.py# bge-base-en-v1.5 embeddings
+    ├── generation_service.py # Mistral-7B inference (GPU/CPU)
+    ├── retrieval_service.py# FAISS search + chunk retrieval
+    ├── rag_service.py      # Orchestrates retrieval + generation
+    ├── mcq_service.py      # MCQ generation & scoring
+    ├── topic_service.py    # Topic management
+    ├── revision_service.py # Revision note generation
+    └── progress_service.py # Analytics & progress tracking
 ```
 
-## Key Endpoints
+## Processing Pipeline
 
-| Method | Endpoint | Description |
-|---|---|---|
-| POST | `/auth/register` | Register student/mentor |
-| POST | `/auth/login` | Login & get JWT token |
-| POST | `/documents/upload` | Upload & process PDF |
-| POST | `/query/ask` | Ask a question (RAG) |
-| POST | `/mcq/generate` | Generate MCQs |
-| POST | `/mcq/submit` | Submit MCQ answers |
-| GET | `/progress/overview` | Student progress |
-| GET | `/mentor/students` | Mentor dashboard |
-| POST | `/revision/generate` | Generate revision notes |
+```
+PDF Upload → Text Extraction (PyMuPDF/OCR) → Smart Chunking (400-600 words, overlapping)
+→ Embedding (bge-base-en-v1.5) → FAISS Indexing → SQLite Storage
+```
+
+## GPU Notes
+
+- **LLM**: Set `LLM_GPU_LAYERS` based on available VRAM. For 6GB GPU: ~20 layers. For 8GB+: 33 (all layers).
+- **Embeddings**: Run on CPU by default to reserve VRAM for LLM.
+- If GPU loading fails, the system auto-retries with fewer layers and falls back to CPU as last resort.
