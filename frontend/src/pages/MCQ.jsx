@@ -1,10 +1,71 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { listDocuments } from '../api/documentApi';
 import { generateMCQs, submitMCQAnswers } from '../api/mcqApi';
 import toast from 'react-hot-toast';
 import MCQCard from '../components/MCQCard';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Target, BookOpen, Layers, CheckCircle2, FlaskConical, PenTool, RefreshCw, Send, Loader2, Play, ChevronDown, ListChecks } from 'lucide-react';
+
+const CustomSelect = ({ value, options, onChange, placeholder }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const dropdownRef = useRef(null);
+
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+                setIsOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    const selectedOption = options.find((opt) => String(opt.value) === String(value));
+
+    return (
+        <div className="relative" ref={dropdownRef}>
+            <button
+                type="button"
+                onClick={() => setIsOpen(!isOpen)}
+                className={`w-full bg-white/[0.03] border ${isOpen ? 'border-cyan-500/50 bg-cyan-500/[0.02] shadow-[0_0_15px_rgba(6,182,212,0.1)]' : 'border-white/10 hover:border-white/20 hover:bg-white/[0.04]'} rounded-xl px-5 py-4 text-left text-slate-200 outline-none transition-all font-medium flex justify-between items-center`}
+            >
+                <span className="truncate pr-4 select-none">
+                    {selectedOption ? selectedOption.label : placeholder}
+                </span>
+                <ChevronDown size={18} className={`text-slate-500 transition-transform duration-300 ${isOpen ? 'rotate-180 text-cyan-400' : ''}`} />
+            </button>
+
+            <AnimatePresence>
+                {isOpen && (
+                    <motion.div
+                        initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                        transition={{ duration: 0.15, ease: "easeOut" }}
+                        className="absolute z-50 w-full mt-2 bg-[#0B1221]/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-[0_20px_40px_rgba(0,0,0,0.6)] py-2 overflow-hidden max-h-60 overflow-y-auto custom-scrollbar"
+                    >
+                        {options.map((option) => (
+                            <button
+                                key={option.value}
+                                type="button"
+                                onClick={() => {
+                                    onChange(option.value);
+                                    setIsOpen(false);
+                                }}
+                                className={`w-full text-left px-5 py-3 hover:bg-white/5 transition-colors flex items-center justify-between group
+                                    ${String(value) === String(option.value) ? 'bg-cyan-500/10 text-cyan-400 font-bold' : 'text-slate-300'}
+                                `}
+                            >
+                                <span className="truncate group-hover:pl-1 transition-all duration-200">{option.label}</span>
+                                {String(value) === String(option.value) && <CheckCircle2 size={16} className="text-cyan-400 shrink-0" />}
+                            </button>
+                        ))}
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </div>
+    );
+};
 
 export default function MCQ() {
     const [documents, setDocuments] = useState([]);
@@ -191,59 +252,59 @@ export default function MCQ() {
                         >
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                                 {/* Document */}
-                                <div className="space-y-3">
+                                <div className="space-y-3 relative z-40">
                                     <label className="flex items-center gap-2 text-sm font-bold text-slate-300">
                                         <BookOpen size={16} className="text-indigo-400" /> Source Material
                                     </label>
-                                    <div className="relative">
-                                        <select value={form.document_id} onChange={(e) => setForm({ ...form, document_id: e.target.value })} className={inputClasses}>
-                                            <option value="" className="bg-[#111827]">Select Document...</option>
-                                            {documents.map((d) => <option key={d.id} value={d.id} className="bg-[#111827]">{d.filename}</option>)}
-                                        </select>
-                                        <ChevronDown size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
-                                    </div>
+                                    <CustomSelect
+                                        value={form.document_id}
+                                        onChange={(val) => setForm({ ...form, document_id: val })}
+                                        placeholder="Select Document..."
+                                        options={documents.map(d => ({ value: d.id, label: d.filename }))}
+                                    />
                                 </div>
 
                                 {/* Mode */}
-                                <div className="space-y-3">
+                                <div className="space-y-3 relative z-30">
                                     <label className="flex items-center gap-2 text-sm font-bold text-slate-300">
                                         <FlaskConical size={16} className="text-cyan-400" /> Assessment Mode
                                     </label>
-                                    <div className="relative">
-                                        <select value={form.mode} onChange={(e) => setForm({ ...form, mode: e.target.value })} className={inputClasses}>
-                                            <option value="study" className="bg-[#111827]">📖 Study Mode (Answers shown)</option>
-                                            <option value="practice" className="bg-[#111827]">📝 Practice Mode (Blind Test)</option>
-                                        </select>
-                                        <ChevronDown size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
-                                    </div>
+                                    <CustomSelect
+                                        value={form.mode}
+                                        onChange={(val) => setForm({ ...form, mode: val })}
+                                        options={[
+                                            { value: 'study', label: '📖 Study Mode (Answers shown)' },
+                                            { value: 'practice', label: '📝 Practice Mode (Blind Test)' }
+                                        ]}
+                                    />
                                 </div>
 
                                 {/* Difficulty */}
-                                <div className="space-y-3">
+                                <div className="space-y-3 relative z-20">
                                     <label className="flex items-center gap-2 text-sm font-bold text-slate-300">
                                         <Target size={16} className="text-rose-400" /> Difficulty Level
                                     </label>
-                                    <div className="relative">
-                                        <select value={form.difficulty} onChange={(e) => setForm({ ...form, difficulty: e.target.value })} className={inputClasses}>
-                                            <option value="easy" className="bg-[#111827]">🟢 Easy (Recall)</option>
-                                            <option value="medium" className="bg-[#111827]">🟡 Medium (Comprehension)</option>
-                                            <option value="hard" className="bg-[#111827]">🔴 Hard (Application)</option>
-                                        </select>
-                                        <ChevronDown size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
-                                    </div>
+                                    <CustomSelect
+                                        value={form.difficulty}
+                                        onChange={(val) => setForm({ ...form, difficulty: val })}
+                                        options={[
+                                            { value: 'easy', label: '🟢 Easy (Recall)' },
+                                            { value: 'medium', label: '🟡 Medium (Comprehension)' },
+                                            { value: 'hard', label: '🔴 Hard (Application)' }
+                                        ]}
+                                    />
                                 </div>
 
                                 {/* Count */}
-                                <div className="space-y-3">
+                                <div className="space-y-3 relative z-10">
                                     <label className="flex items-center gap-2 text-sm font-bold text-slate-300">
                                         <Layers size={16} className="text-emerald-400" /> Question Count
                                     </label>
-                                    <div className="relative">
-                                        <select value={form.count} onChange={(e) => setForm({ ...form, count: e.target.value })} className={inputClasses}>
-                                            {[3, 5, 7, 10, 15, 20].map((n) => <option key={n} value={n} className="bg-[#111827]">{n} Questions</option>)}
-                                        </select>
-                                        <ChevronDown size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
-                                    </div>
+                                    <CustomSelect
+                                        value={form.count}
+                                        onChange={(val) => setForm({ ...form, count: val })}
+                                        options={[3, 5, 7, 10, 15, 20].map((n) => ({ value: n, label: `${n} Questions` }))}
+                                    />
                                 </div>
                             </div>
 

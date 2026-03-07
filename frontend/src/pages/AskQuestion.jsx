@@ -3,7 +3,68 @@ import { listDocuments } from '../api/documentApi';
 import { askQuestion } from '../api/queryApi';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BrainCircuit, BookOpen, Layers, Target, ChevronDown, Check, Sparkles, MessageSquare, Loader2, ArrowRight, ShieldCheck, ChevronRight, FileText } from 'lucide-react';
+import { BrainCircuit, BookOpen, Layers, Target, ChevronDown, Check, CheckCircle2, Sparkles, MessageSquare, Loader2, ArrowRight, ShieldCheck, ChevronRight, FileText } from 'lucide-react';
+
+const CustomSelect = ({ value, options, onChange, placeholder }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const dropdownRef = useRef(null);
+
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+                setIsOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    const selectedOption = options.find((opt) => String(opt.value) === String(value));
+
+    return (
+        <div className="relative" ref={dropdownRef}>
+            <button
+                type="button"
+                onClick={() => setIsOpen(!isOpen)}
+                className={`w-full bg-white/[0.03] border ${isOpen ? 'border-indigo-500/50 bg-indigo-500/[0.02] shadow-[0_0_15px_rgba(99,102,241,0.1)]' : 'border-white/10 hover:border-white/20 hover:bg-white/[0.04]'} rounded-xl px-5 py-4 text-left text-slate-200 outline-none transition-all font-medium flex justify-between items-center`}
+            >
+                <span className="truncate pr-4 select-none">
+                    {selectedOption ? selectedOption.label : placeholder}
+                </span>
+                <ChevronDown size={18} className={`text-slate-500 transition-transform duration-300 ${isOpen ? 'rotate-180 text-indigo-400' : ''}`} />
+            </button>
+
+            <AnimatePresence>
+                {isOpen && (
+                    <motion.div
+                        initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                        transition={{ duration: 0.15, ease: "easeOut" }}
+                        className="absolute z-50 w-full mt-2 bg-[#0B1221]/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-[0_20px_40px_rgba(0,0,0,0.6)] py-2 overflow-hidden max-h-60 overflow-y-auto custom-scrollbar"
+                    >
+                        {options.map((option) => (
+                            <button
+                                key={option.value}
+                                type="button"
+                                onClick={() => {
+                                    onChange(option.value);
+                                    setIsOpen(false);
+                                }}
+                                className={`w-full text-left px-5 py-3 hover:bg-white/5 transition-colors flex items-center justify-between group
+                                    ${String(value) === String(option.value) ? 'bg-indigo-500/10 text-indigo-400 font-bold' : 'text-slate-300'}
+                                `}
+                            >
+                                <span className="truncate group-hover:pl-1 transition-all duration-200">{option.label}</span>
+                                {String(value) === String(option.value) && <CheckCircle2 size={16} className="text-indigo-400 shrink-0" />}
+                            </button>
+                        ))}
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </div>
+    );
+};
 
 export default function AskQuestion() {
     const [documents, setDocuments] = useState([]);
@@ -202,42 +263,36 @@ export default function AskQuestion() {
                         </div>
 
                         {/* Settings Row */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative z-10">
+                            <div className="relative z-20">
                                 <label className="flex items-center gap-2 text-sm font-semibold text-slate-300 mb-3">
                                     <Sparkles size={16} className="text-cyan-400" /> Intelligence Mode
                                 </label>
-                                <div className="relative">
-                                    <select 
-                                        value={form.mode} 
-                                        onChange={(e) => setForm({ ...form, mode: e.target.value })} 
-                                        className={`${inputClasses} appearance-none cursor-pointer pr-10`}
-                                    >
-                                        <option value="detailed" className="bg-[#111827]">Detailed Analysis</option>
-                                        <option value="beginner" className="bg-[#111827]">Explain to Beginner (ELI5)</option>
-                                        <option value="exam" className="bg-[#111827]">Exam Focused Style</option>
-                                    </select>
-                                    <ChevronDown size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
-                                </div>
+                                <CustomSelect
+                                    value={form.mode}
+                                    onChange={(val) => setForm({ ...form, mode: val })}
+                                    options={[
+                                        { value: 'detailed', label: 'Detailed Analysis' },
+                                        { value: 'beginner', label: 'Explain to Beginner (ELI5)' },
+                                        { value: 'exam', label: 'Exam Focused Style' }
+                                    ]}
+                                />
                             </div>
-                            <div>
+                            <div className="relative z-10">
                                 <label className="flex items-center gap-2 text-sm font-semibold text-slate-300 mb-3">
                                     <Target size={16} className="text-emerald-400" /> Output Weighting
                                 </label>
-                                <div className="relative">
-                                    <select 
-                                        value={form.marks} 
-                                        onChange={(e) => setForm({ ...form, marks: e.target.value })} 
-                                        className={`${inputClasses} appearance-none cursor-pointer pr-10`}
-                                    >
-                                        <option value="" className="bg-[#111827]">Auto Length (Recommended)</option>
-                                        <option value="2" className="bg-[#111827]">Short (2 Marks)</option>
-                                        <option value="3" className="bg-[#111827]">Medium (3 Marks)</option>
-                                        <option value="5" className="bg-[#111827]">Long (5 Marks)</option>
-                                        <option value="10" className="bg-[#111827]">Comprehensive (10 Marks)</option>
-                                    </select>
-                                    <ChevronDown size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
-                                </div>
+                                <CustomSelect
+                                    value={form.marks}
+                                    onChange={(val) => setForm({ ...form, marks: val })}
+                                    options={[
+                                        { value: '', label: 'Auto Length (Recommended)' },
+                                        { value: '2', label: 'Short (2 Marks)' },
+                                        { value: '3', label: 'Medium (3 Marks)' },
+                                        { value: '5', label: 'Long (5 Marks)' },
+                                        { value: '10', label: 'Comprehensive (10 Marks)' }
+                                    ]}
+                                />
                             </div>
                         </div>
 
