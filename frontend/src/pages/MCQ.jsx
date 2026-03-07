@@ -2,23 +2,22 @@ import { useState, useEffect } from 'react';
 import { listDocuments } from '../api/documentApi';
 import { generateMCQs, submitMCQAnswers } from '../api/mcqApi';
 import toast from 'react-hot-toast';
-import Spinner from '../components/Spinner';
 import MCQCard from '../components/MCQCard';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Target, BookOpen, Layers, CheckCircle2, FlaskConical, PenTool, RefreshCw, Send, Loader2, Play, ChevronDown, ListChecks } from 'lucide-react';
 
 export default function MCQ() {
     const [documents, setDocuments] = useState([]);
     const [form, setForm] = useState({ document_id: '', count: 5, mode: 'study', difficulty: 'medium' });
     const [loading, setLoading] = useState(false);
     const [mcqData, setMcqData] = useState(null);
-    const [answers, setAnswers] = useState({});       // { questionId: 'A' }
+    const [answers, setAnswers] = useState({});
     const [submitted, setSubmitted] = useState(false);
     const [result, setResult] = useState(null);
 
-    // Study-to-Practice: stored study questions for reuse
     const [studyQuestions, setStudyQuestions] = useState(null);
     const [isPracticeFromStudy, setIsPracticeFromStudy] = useState(false);
 
-    // Load completed documents via centralized API
     useEffect(() => {
         listDocuments()
             .then((res) => {
@@ -30,7 +29,12 @@ export default function MCQ() {
     }, []);
 
     const handleGenerate = async () => {
-        if (!form.document_id) return toast.error('Select a document');
+        if (!form.document_id) {
+            toast.error('Select a document', {
+                style: { background: '#0A0F1C', color: '#F87171', border: '1px solid #EF4444' }
+            });
+            return;
+        }
         setLoading(true);
         setMcqData(null);
         setAnswers({});
@@ -46,22 +50,22 @@ export default function MCQ() {
                 difficulty: form.difficulty,
             });
             setMcqData(res.data);
-            // Save study questions for potential "Take Practice Test" later
             if (form.mode === 'study' && res.data.questions.length > 0) {
                 setStudyQuestions(res.data.questions);
             }
             if (res.data.questions.length === 0) {
-                toast.error('No MCQs could be generated. Try a different document.');
+                toast.error('No MCQs could be generated. Try a different document.', {
+                     style: { background: '#0A0F1C', color: '#F87171', border: '1px solid #EF4444' }
+                });
             }
         } catch (err) {
-            // Distinguish timeout from server errors
-            if (err.code === 'ECONNABORTED') {
-                toast.error('MCQ generation timed out. The LLM is still processing — try again in a moment.');
-            } else {
-                toast.error(err.response?.data?.detail || 'MCQ generation failed');
-            }
+            const isTimeout = err.code === 'ECONNABORTED';
+            toast.error(isTimeout ? 'MCQ generation timed out. The LLM is still processing.' : (err.response?.data?.detail || 'MCQ generation failed'), {
+                 style: { background: '#0A0F1C', color: '#F87171', border: '1px solid #EF4444' }
+            });
         } finally {
             setLoading(false);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
         }
     };
 
@@ -73,11 +77,12 @@ export default function MCQ() {
         if (!mcqData) return;
         const unanswered = mcqData.questions.filter((q) => !answers[q.id]);
         if (unanswered.length > 0) {
-            toast.error(`Please answer all questions (${unanswered.length} remaining)`);
+            toast.error(`Please answer all questions (${unanswered.length} remaining)`, {
+                 style: { background: '#0A0F1C', color: '#FCD34D', border: '1px solid #F59E0B' }
+            });
             return;
         }
 
-        // If practice mode with attempt_id (backend-generated practice), submit to backend
         if (mcqData.mode === 'practice' && mcqData.attempt_id) {
             try {
                 const res = await submitMCQAnswers({
@@ -88,7 +93,6 @@ export default function MCQ() {
                     })),
                 });
                 setResult(res.data);
-                // Update mcqData questions with correct answers from results
                 const updatedQuestions = mcqData.questions.map((q) => {
                     const r = res.data.results.find((r) => r.id === q.id);
                     return r ? { ...q, correct_answer: r.correct_answer, explanation: r.explanation } : q;
@@ -99,7 +103,6 @@ export default function MCQ() {
                 return;
             }
         } else {
-            // Study mode or study-to-practice — score locally using stored correct answers
             const sourceQuestions = isPracticeFromStudy ? studyQuestions : mcqData.questions;
             const correct = sourceQuestions.filter((q) => answers[q.id] === q.correct_answer).length;
             setResult({
@@ -107,7 +110,6 @@ export default function MCQ() {
                 correct_count: correct,
                 score: (correct / sourceQuestions.length) * 100,
             });
-            // Reveal correct answers and explanations after scoring
             if (isPracticeFromStudy) {
                 const revealedQuestions = mcqData.questions.map((q) => {
                     const orig = studyQuestions.find((sq) => sq.id === q.id);
@@ -117,12 +119,11 @@ export default function MCQ() {
             }
         }
         setSubmitted(true);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
-    // Switch from study view to practice test with the same questions
     const handleTakePracticeTest = () => {
         if (!studyQuestions) return;
-        // Create practice-mode data from the studied questions (hide answers)
         const practiceQuestions = studyQuestions.map((q) => ({
             ...q,
             correct_answer: null,
@@ -131,15 +132,17 @@ export default function MCQ() {
         setMcqData({
             document_id: mcqData.document_id,
             topic: mcqData.topic,
-            mode: 'practice', // Override mode to practice
+            mode: 'practice',
             questions: practiceQuestions,
-            attempt_id: null, // No backend attempt — we score locally
+            attempt_id: null,
         });
         setAnswers({});
         setSubmitted(false);
         setResult(null);
         setIsPracticeFromStudy(true);
-        toast.success('Practice test ready — same questions, no answers shown!');
+        toast.success('Practice test ready!', {
+             style: { background: '#0A0F1C', color: '#34D399', border: '1px solid #10B981' }
+        });
     };
 
     const resetQuiz = () => {
@@ -151,136 +154,228 @@ export default function MCQ() {
         setIsPracticeFromStudy(false);
     };
 
-    const selectClass = 'w-full px-4 py-3 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text)] focus:outline-none focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)] transition-all';
+    const inputClasses = "w-full bg-white/[0.03] border border-white/10 rounded-xl px-5 py-4 text-slate-200 outline-none focus:border-cyan-500/50 focus:bg-cyan-500/[0.02] transition-all font-medium appearance-none cursor-pointer pr-10";
 
-    const difficultyInfo = {
-        easy: { emoji: '🟢', label: 'Easy', desc: 'Factual recall — straightforward questions' },
-        medium: { emoji: '🟡', label: 'Medium', desc: 'Conceptual understanding — why & how questions' },
-        hard: { emoji: '🔴', label: 'Hard', desc: 'Application & analysis — tricky, multi-concept questions' },
+    const getDifficultyIcon = (diff) => {
+        if (diff === 'easy') return <span className="text-emerald-400">🟢</span>;
+        if (diff === 'medium') return <span className="text-amber-400">🟡</span>;
+        return <span className="text-rose-400">🔴</span>;
     };
 
     return (
-        <div className="max-w-4xl mx-auto px-6 py-8 animate-fade-in">
-            <h1 className="text-2xl font-bold mb-2">MCQ Generator</h1>
-            <p className="text-[var(--color-text-muted)] mb-8">Generate practice questions from your documents</p>
+        <div className="relative min-h-[calc(100vh-64px)] bg-[#0A0F1C] overflow-hidden p-6 sm:p-10 selection:bg-cyan-500/30">
+            {/* Ambient Base Gradients */}
+            <div className="absolute top-0 left-0 w-[800px] h-[800px] bg-cyan-500/10 rounded-full blur-[120px] pointer-events-none mix-blend-screen" />
+            <div className="absolute bottom-0 right-0 w-[600px] h-[600px] bg-indigo-500/10 rounded-full blur-[100px] pointer-events-none mix-blend-screen" />
 
-            {/* Config Panel */}
-            {!mcqData && (
-                <div className="glass-card p-6 space-y-5">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                        <div>
-                            <label className="block text-sm font-medium text-[var(--color-text-muted)] mb-1.5">Document</label>
-                            <select value={form.document_id} onChange={(e) => setForm({ ...form, document_id: e.target.value })} className={selectClass}>
-                                <option value="">Select</option>
-                                {documents.map((d) => <option key={d.id} value={d.id}>{d.filename}</option>)}
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-[var(--color-text-muted)] mb-1.5">Mode</label>
-                            <select value={form.mode} onChange={(e) => setForm({ ...form, mode: e.target.value })} className={selectClass}>
-                                <option value="study">📖 Study — Show answers</option>
-                                <option value="practice">📝 Practice — Assessment</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-[var(--color-text-muted)] mb-1.5">Difficulty</label>
-                            <select value={form.difficulty} onChange={(e) => setForm({ ...form, difficulty: e.target.value })} className={selectClass}>
-                                <option value="easy">🟢 Easy</option>
-                                <option value="medium">🟡 Medium</option>
-                                <option value="hard">🔴 Hard</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-[var(--color-text-muted)] mb-1.5">Questions</label>
-                            <select value={form.count} onChange={(e) => setForm({ ...form, count: e.target.value })} className={selectClass}>
-                                {[3, 5, 7, 10, 15].map((n) => <option key={n} value={n}>{n} questions</option>)}
-                            </select>
-                        </div>
+            <div className="relative max-w-5xl mx-auto z-10">
+                {/* Header */}
+                <div className="flex items-center gap-5 mb-10">
+                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-cyan-500/20 to-indigo-500/20 border border-cyan-500/30 flex items-center justify-center text-cyan-400 shadow-[0_0_30px_rgba(6,182,212,0.15)]">
+                        <ListChecks size={32} />
                     </div>
-
-                    {/* Mode + Difficulty Description */}
-                    <div className="p-3 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] space-y-1">
-                        {form.mode === 'study' ? (
-                            <p className="text-sm text-[var(--color-text-muted)]">📖 <strong>Study Mode</strong>: Questions, answers, and explanations shown together for learning.</p>
-                        ) : (
-                            <p className="text-sm text-[var(--color-text-muted)]">📝 <strong>Practice Mode</strong>: Answer all questions, then submit to see your score and review.</p>
-                        )}
-                        <p className="text-sm text-[var(--color-text-muted)]">
-                            {difficultyInfo[form.difficulty].emoji} <strong>{difficultyInfo[form.difficulty].label}</strong>: {difficultyInfo[form.difficulty].desc}
-                        </p>
+                    <div>
+                        <h1 className="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-indigo-400 tracking-tight">Assessments & MCQs</h1>
+                        <p className="text-slate-400 text-lg font-medium mt-1">Generate AI quizzes to test your knowledge.</p>
                     </div>
-
-                    <button
-                        onClick={handleGenerate}
-                        disabled={loading}
-                        className="w-full py-3 px-4 rounded-lg bg-gradient-to-r from-indigo-500 to-indigo-600 text-white font-semibold hover:from-indigo-600 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
-                    >
-                        {loading ? <><Spinner size="sm" /> Generating MCQs...</> : '✅ Generate MCQs'}
-                    </button>
                 </div>
-            )}
 
-            {/* MCQ Questions */}
-            {mcqData && mcqData.questions.length > 0 && (
-                <div className="space-y-4">
-                    {/* Score Result Banner */}
-                    {result && (
-                        <div className={`glass-card p-6 text-center animate-fade-in ${result.score >= 70 ? 'border-emerald-500/30' : result.score >= 40 ? 'border-yellow-500/30' : 'border-red-500/30'}`}>
-                            <div className="text-4xl mb-2">{result.score >= 70 ? '🎉' : result.score >= 40 ? '💪' : '📚'}</div>
-                            <h2 className="text-2xl font-bold">
-                                {result.correct_count} / {result.total_questions}
-                            </h2>
-                            <p className={`text-lg font-semibold ${result.score >= 70 ? 'text-emerald-400' : result.score >= 40 ? 'text-yellow-400' : 'text-red-400'}`}>
-                                {result.score.toFixed(0)}%
-                            </p>
-                            <p className="text-sm text-[var(--color-text-muted)] mt-1">
-                                {result.score >= 70 ? 'Great job!' : result.score >= 40 ? 'Keep practicing!' : 'Review the material and try again'}
-                            </p>
-                        </div>
-                    )}
-
-                    {/* Question Cards */}
-                    {mcqData.questions.map((q) => (
-                        <MCQCard
-                            key={q.id}
-                            question={q}
-                            showAnswer={mcqData.mode === 'study' || submitted}
-                            selectedAnswer={answers[q.id]}
-                            onSelect={(label) => handleSelect(q.id, label)}
-                        />
-                    ))}
-
-                    {/* Action Buttons */}
-                    <div className="flex gap-3 flex-wrap">
-                        {/* Submit button for practice mode */}
-                        {mcqData.mode === 'practice' && !submitted && (
-                            <button
-                                onClick={handleSubmit}
-                                className="flex-1 py-3 px-4 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-semibold hover:from-emerald-600 hover:to-emerald-700 transition-all"
-                            >
-                                Submit Answers ({Object.keys(answers).length}/{mcqData.questions.length})
-                            </button>
-                        )}
-
-                        {/* "Take Practice Test" button — only in study mode after studying */}
-                        {mcqData.mode === 'study' && studyQuestions && !isPracticeFromStudy && (
-                            <button
-                                onClick={handleTakePracticeTest}
-                                className="flex-1 py-3 px-4 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 text-white font-semibold hover:from-amber-600 hover:to-orange-600 transition-all"
-                            >
-                                📝 Take Practice Test
-                            </button>
-                        )}
-
-                        <button
-                            onClick={resetQuiz}
-                            className="flex-1 py-3 px-4 rounded-lg border border-[var(--color-border)] text-sm font-medium hover:bg-[var(--color-surface-elevated)]/50 transition-all"
+                <AnimatePresence mode="wait">
+                    {!mcqData ? (
+                        <motion.div
+                            key="config-panel"
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            className="bg-white/[0.02] border border-white/[0.05] rounded-3xl p-8 backdrop-blur-xl shadow-2xl space-y-8"
                         >
-                            {submitted ? 'Generate New MCQs' : 'Back'}
-                        </button>
-                    </div>
-                </div>
-            )}
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                                {/* Document */}
+                                <div className="space-y-3">
+                                    <label className="flex items-center gap-2 text-sm font-bold text-slate-300">
+                                        <BookOpen size={16} className="text-indigo-400" /> Source Material
+                                    </label>
+                                    <div className="relative">
+                                        <select value={form.document_id} onChange={(e) => setForm({ ...form, document_id: e.target.value })} className={inputClasses}>
+                                            <option value="" className="bg-[#111827]">Select Document...</option>
+                                            {documents.map((d) => <option key={d.id} value={d.id} className="bg-[#111827]">{d.filename}</option>)}
+                                        </select>
+                                        <ChevronDown size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+                                    </div>
+                                </div>
+
+                                {/* Mode */}
+                                <div className="space-y-3">
+                                    <label className="flex items-center gap-2 text-sm font-bold text-slate-300">
+                                        <FlaskConical size={16} className="text-cyan-400" /> Assessment Mode
+                                    </label>
+                                    <div className="relative">
+                                        <select value={form.mode} onChange={(e) => setForm({ ...form, mode: e.target.value })} className={inputClasses}>
+                                            <option value="study" className="bg-[#111827]">📖 Study Mode (Answers shown)</option>
+                                            <option value="practice" className="bg-[#111827]">📝 Practice Mode (Blind Test)</option>
+                                        </select>
+                                        <ChevronDown size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+                                    </div>
+                                </div>
+
+                                {/* Difficulty */}
+                                <div className="space-y-3">
+                                    <label className="flex items-center gap-2 text-sm font-bold text-slate-300">
+                                        <Target size={16} className="text-rose-400" /> Difficulty Level
+                                    </label>
+                                    <div className="relative">
+                                        <select value={form.difficulty} onChange={(e) => setForm({ ...form, difficulty: e.target.value })} className={inputClasses}>
+                                            <option value="easy" className="bg-[#111827]">🟢 Easy (Recall)</option>
+                                            <option value="medium" className="bg-[#111827]">🟡 Medium (Comprehension)</option>
+                                            <option value="hard" className="bg-[#111827]">🔴 Hard (Application)</option>
+                                        </select>
+                                        <ChevronDown size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+                                    </div>
+                                </div>
+
+                                {/* Count */}
+                                <div className="space-y-3">
+                                    <label className="flex items-center gap-2 text-sm font-bold text-slate-300">
+                                        <Layers size={16} className="text-emerald-400" /> Question Count
+                                    </label>
+                                    <div className="relative">
+                                        <select value={form.count} onChange={(e) => setForm({ ...form, count: e.target.value })} className={inputClasses}>
+                                            {[3, 5, 7, 10, 15, 20].map((n) => <option key={n} value={n} className="bg-[#111827]">{n} Questions</option>)}
+                                        </select>
+                                        <ChevronDown size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <motion.button
+                                whileHover={{ scale: 1.01 }}
+                                whileTap={{ scale: 0.98 }}
+                                onClick={handleGenerate}
+                                disabled={loading}
+                                className={`w-full py-5 px-6 rounded-2xl font-bold text-lg flex items-center justify-center gap-3 transition-all shadow-xl
+                                    ${loading 
+                                        ? 'bg-white/5 text-slate-500 cursor-not-allowed border border-white/5' 
+                                        : 'bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white shadow-cyan-500/25 border border-cyan-500/50 hover:shadow-cyan-500/40'
+                                    }`}
+                            >
+                                {loading ? (
+                                    <>
+                                        <Loader2 size={24} className="animate-spin" />
+                                        <span>Generating via LLM...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <PenTool size={20} />
+                                        <span>Generate Assessment</span>
+                                    </>
+                                )}
+                            </motion.button>
+                        </motion.div>
+                    ) : (
+                        <motion.div
+                            key="mcq-view"
+                            initial={{ opacity: 0, x: 20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            className="space-y-6"
+                        >
+                            {/* Header Stats */}
+                            <div className="flex flex-wrap items-center justify-between gap-4 bg-white/5 border border-white/10 rounded-2xl p-5 backdrop-blur-md">
+                                <div className="flex items-center gap-4">
+                                    <span className="px-3 py-1.5 rounded-lg bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 font-bold text-sm">
+                                        {mcqData.mode.toUpperCase()} MODE
+                                    </span>
+                                    <span className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-slate-300 font-bold text-sm flex items-center gap-2">
+                                        {getDifficultyIcon(form.difficulty)} {form.difficulty.toUpperCase()}
+                                    </span>
+                                </div>
+                                <div className="text-slate-400 font-medium">
+                                    Topic: <span className="text-white font-bold">{mcqData.topic || 'General'}</span>
+                                </div>
+                            </div>
+
+                            {/* Results Banner */}
+                            <AnimatePresence>
+                                {result && (
+                                    <motion.div 
+                                        initial={{ opacity: 0, scale: 0.9, y: -20 }}
+                                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                                        className={`p-8 rounded-3xl border-2 text-center shadow-2xl relative overflow-hidden backdrop-blur-xl
+                                            ${result.score >= 70 ? 'bg-emerald-500/10 border-emerald-500/50 shadow-[0_0_50px_rgba(16,185,129,0.1)]' : 
+                                              result.score >= 40 ? 'bg-amber-500/10 border-amber-500/50 shadow-[0_0_50px_rgba(245,158,11,0.1)]' : 
+                                              'bg-rose-500/10 border-rose-500/50 shadow-[0_0_50px_rgba(244,63,94,0.1)]'}`}
+                                    >
+                                        <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(ellipse_at_center,rgba(255,255,255,0.1)_0%,transparent_100%)] pointer-events-none" />
+                                        <div className="relative z-10">
+                                            <div className="text-6xl mb-4 drop-shadow-lg">
+                                                {result.score >= 70 ? '🏆' : result.score >= 40 ? '🥈' : '📚'}
+                                            </div>
+                                            <h2 className="text-3xl font-extrabold text-white mb-2">
+                                                {result.correct_count} out of {result.total_questions} Correct
+                                            </h2>
+                                            <p className={`text-2xl font-black ${result.score >= 70 ? 'text-emerald-400' : result.score >= 40 ? 'text-amber-400' : 'text-rose-400'}`}>
+                                                {result.score.toFixed(0)}% Score
+                                            </p>
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+
+                            {/* The Questions */}
+                            <div className="space-y-6">
+                                {mcqData.questions.map((q, idx) => (
+                                    <motion.div
+                                        key={q.id}
+                                        initial={{ opacity: 0, y: 20 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        transition={{ delay: idx * 0.05 }}
+                                    >
+                                        <MCQCard
+                                            question={q}
+                                            showAnswer={mcqData.mode === 'study' || submitted}
+                                            selectedAnswer={answers[q.id]}
+                                            onSelect={(label) => handleSelect(q.id, label)}
+                                        />
+                                    </motion.div>
+                                ))}
+                            </div>
+
+                            {/* Action Bottom Bar */}
+                            <div className="sticky bottom-6 z-40 bg-[#0A0F1C]/80 backdrop-blur-2xl border border-white/10 p-4 rounded-2xl shadow-[0_-10px_40px_rgba(0,0,0,0.5)] flex flex-wrap gap-4 mt-10">
+                                {mcqData.mode === 'practice' && !submitted && (
+                                    <motion.button
+                                        whileHover={{ scale: 1.02 }}
+                                        whileTap={{ scale: 0.98 }}
+                                        onClick={handleSubmit}
+                                        className="flex-1 min-w-[200px] py-4 px-6 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-bold shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-2 text-lg"
+                                    >
+                                        <Send size={20} /> Submit Answers ({Object.keys(answers).length}/{mcqData.questions.length})
+                                    </motion.button>
+                                )}
+
+                                {mcqData.mode === 'study' && studyQuestions && !isPracticeFromStudy && (
+                                    <motion.button
+                                        whileHover={{ scale: 1.02 }}
+                                        whileTap={{ scale: 0.98 }}
+                                        onClick={handleTakePracticeTest}
+                                        className="flex-1 min-w-[200px] py-4 px-6 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold shadow-lg shadow-amber-500/25 flex items-center justify-center gap-2 text-lg"
+                                    >
+                                        <Play size={20} /> Take Practice Test
+                                    </motion.button>
+                                )}
+
+                                <motion.button
+                                    whileHover={{ scale: 1.02 }}
+                                    whileTap={{ scale: 0.98 }}
+                                    onClick={resetQuiz}
+                                    className="flex-[0.5] min-w-[150px] py-4 px-6 rounded-xl border-2 border-white/10 hover:border-white/20 hover:bg-white/5 text-white font-bold transition-all flex items-center justify-center gap-2 text-lg"
+                                >
+                                    <RefreshCw size={20} /> {submitted ? 'New Quiz' : 'Reset'}
+                                </motion.button>
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+            </div>
         </div>
     );
 }
