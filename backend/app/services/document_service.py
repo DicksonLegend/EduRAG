@@ -84,7 +84,7 @@ class DocumentService:
 
         # Step 2: Check for duplicates
         file_hash = self.compute_file_hash(file_content)
-        existing = self.doc_repo.get_by_hash(file_hash)
+        existing = self.doc_repo.get_by_hash(file_hash, user_id=user_id)
         if existing:
             return {
                 "document_id": existing.id,

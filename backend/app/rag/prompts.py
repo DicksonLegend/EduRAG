@@ -55,18 +55,21 @@ MODE_PROMPTS = {
 MARK_PROMPTS = {
     2: (
         "This is a 2-mark answer. "
-        "Provide exactly 2–3 concise bullet points. "
-        "Maximum 50 words total. Be very brief."
+        "Provide exactly 4 numbered points. "
+        "Each point should be 2–3 sentences. "
+        "Target roughly half a page of content."
     ),
     3: (
         "This is a 3-mark answer. "
-        "Provide 3–4 structured points with brief explanations. "
-        "Maximum 80 words total."
+        "Provide 5–6 structured points with short explanations. "
+        "Target roughly 3/4 of a page."
     ),
     5: (
         "This is a 5-mark answer. "
-        "Provide 5 well-structured points, each with a one-line explanation. "
-        "Maximum 150 words total."
+        "Provide 10–12 well-structured points. "
+        "Each point should be 2–4 sentences with clear explanation, key terms, and, where relevant, a short example. "
+        "Start with a 2–3 sentence introduction and end with a 2–3 sentence summary. "
+        "Target 1.5+ pages of content."
     ),
     10: (
         "This is a 10-mark answer. "
@@ -75,7 +78,9 @@ MARK_PROMPTS = {
         "- Multiple headings or sub-sections "
         "- Detailed explanation with bullet points under each heading "
         "- A concluding summary "
-        "Maximum 300 words total."
+        "Expand each heading into 3–5 detailed points, each 2–4 sentences. "
+        "Include definitions, mechanisms/processes, and at least one example or application. "
+        "Target 2.5–3 pages of content."
     ),
 }
 

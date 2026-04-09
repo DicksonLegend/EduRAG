@@ -44,8 +44,11 @@ class DocumentRepository:
     def get_document(self, document_id: int) -> Optional[Document]:
         return self.db.query(Document).filter(Document.id == document_id).first()
 
-    def get_by_hash(self, file_hash: str) -> Optional[Document]:
-        return self.db.query(Document).filter(Document.file_hash == file_hash).first()
+    def get_by_hash(self, file_hash: str, user_id: Optional[int] = None) -> Optional[Document]:
+        query = self.db.query(Document).filter(Document.file_hash == file_hash)
+        if user_id is not None:
+            query = query.filter(Document.uploaded_by == user_id)
+        return query.first()
 
     def get_user_documents(self, user_id: int) -> list[Document]:
         return (
